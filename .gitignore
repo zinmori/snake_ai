@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pytorch
+*.log
+
+# Environnements virtuels
+env/
+venv/
+ENV/
+.venv/
+
+# PyCharm
+.idea/
+
+# VSCode
+.vscode/
+
+# Streamlit
+.streamlit/
+
+# Autres
+.DS_Store
+Thumbs.db
