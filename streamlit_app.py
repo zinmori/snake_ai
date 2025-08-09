@@ -9,6 +9,7 @@ import os
 import pandas as pd
 import plotly.graph_objects as go
 from PIL import Image
+import io
 
 
 # Configuration de la page
@@ -108,10 +109,6 @@ def create_text_grid(snake, food, width=32, height=24):
 
 if model_exists and run_demo:
     with st.spinner("🎮 Initialisation du jeu..."):
-        # Désactiver l'affichage Pygame pour Streamlit Cloud
-        import os
-        os.environ['SDL_VIDEODRIVER'] = 'dummy'
-
         env = SnakeGameEnv(speed=speed)
         state_size = len(env.get_state())
         action_size = 3
@@ -122,6 +119,7 @@ if model_exists and run_demo:
     with col1:
         frame_placeholder = st.empty()
         game_display = st.empty()
+        loading_placeholder = st.empty()
 
     state = env.reset()
     done = False
@@ -137,39 +135,42 @@ if model_exists and run_demo:
         moves += 1
 
         # Affichage du jeu - essayer Pygame puis fallback textuel
-        try:
-            # Marche en local
-            arr = np.transpose(
-                pygame.surfarray.array3d(env.display), (1, 0, 2))
-            frames.append(Image.fromarray(arr))
+        # Marche en local
+        arr = np.transpose(
+            pygame.surfarray.array3d(env.display), (1, 0, 2))
+        frames.append(Image.fromarray(arr))
 
-            # Afficher l'image dans Streamlit
-            # frame_placeholder.image(frames[-1], channels='RGB', width=400)
-            game_display.empty()  # Vider l'affichage textuel
-        except:
-            # Fallback pour Streamlit Cloud
-            frame_placeholder.empty()  # Vider l'affichage image
-            grid = create_text_grid(env.snake, env.food, 32, 24)
-            game_display.code(grid, language=None)
+        grid = create_text_grid(env.snake, env.food, 32, 24)
+        game_display.code(grid, language=None)
 
         # Mise à jour des métriques
         with col2:
             score_placeholder.metric("Score actuel", score)
 
-        time.sleep(1.0/speed)  # Limiter la vitesse pour le cloud
+        time.sleep(1.0/speed)
 
-    # Fin de partie - ajouter le score à l'historique
-    gif_path = "snake_game.gif"
-    frames[0].save(
-        gif_path,
-        save_all=True,
-        append_images=frames[1:],
-        duration=int(1000 / speed),
-        loop=0
-    )
+    # Fin de partie
+    game_display.empty()
+
+    # Générer le GIF avec spinner dans la zone de jeu
+    with game_display.container():
+        with st.spinner("🎥 Génération du replay..."):
+            gif_bytes = io.BytesIO()
+            frames[0].save(
+                gif_bytes,
+                save_all=True,
+                format="GIF",
+                append_images=frames[1:],
+                duration=int(10000 / speed),
+                loop=0
+            )
 
     # Afficher le GIF final
-    frame_placeholder.image(gif_path)
+    gif_bytes.seek(0)
+
+    # Affichage du GIF final
+    frame_placeholder.image(gif_bytes)
+
     st.session_state.game_number += 1
     st.session_state.score_history.append(score)
 
@@ -205,8 +206,6 @@ if model_exists and run_demo:
         )
         chart_placeholder.plotly_chart(fig_final, use_container_width=True)
 
-    # Fin de partie
-    st.balloons()
     st.success(
         f"🎉 Partie terminée ! Score final : **{score}**")
 
