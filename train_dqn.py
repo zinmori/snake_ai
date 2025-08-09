@@ -6,7 +6,7 @@ import argparse
 from dqn_agent import DQNAgent
 from game import SnakeGameEnv
 
-EPISODES = 1000
+EPISODES = 500
 BATCH_SIZE = 1000
 SCORES = []
 
