@@ -30,7 +30,7 @@ st.markdown("""
 
 # Sidebar pour les contrôles
 st.sidebar.header("🎮 Contrôles de jeu")
-speed = st.sidebar.slider('Vitesse du jeu', 1, 500, 100)
+speed = st.sidebar.slider('Vitesse du jeu', 1, 100, 50)
 model_path = 'dqn_snake.pth'
 
 # Initialisation de l'historique des scores
@@ -161,7 +161,7 @@ if model_exists and run_demo:
                 save_all=True,
                 format="GIF",
                 append_images=frames[1:],
-                duration=int(10000 / speed),
+                duration=int(5000 / speed),
                 loop=0
             )
 
