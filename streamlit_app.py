@@ -8,6 +8,8 @@ import time
 import os
 import pandas as pd
 import plotly.graph_objects as go
+from PIL import Image
+
 
 # Configuration de la page
 st.set_page_config(
@@ -27,7 +29,7 @@ st.markdown("""
 
 # Sidebar pour les contrôles
 st.sidebar.header("🎮 Contrôles de jeu")
-speed = st.sidebar.slider('Vitesse du jeu (frames/sec)', 1, 500, 100)
+speed = st.sidebar.slider('Vitesse du jeu', 1, 500, 100)
 model_path = 'dqn_snake.pth'
 
 # Initialisation de l'historique des scores
@@ -77,8 +79,39 @@ with col2:
         )
         chart_placeholder.plotly_chart(fig, use_container_width=True)
 
+
+def create_text_grid(snake, food, width=32, height=24):
+    """Créer une représentation textuelle du jeu Snake"""
+    grid = [['. ' for _ in range(width)] for _ in range(height)]
+
+    # Convertir les positions pygame en positions de grille
+    def to_grid(pos):
+        return int(pos[0] // 20), int(pos[1] // 20)
+
+    # Placer la nourriture
+    if food:
+        fx, fy = to_grid(food)
+        if 0 <= fx < width and 0 <= fy < height:
+            grid[fy][fx] = '🍎'
+
+    # Placer le serpent
+    for i, segment in enumerate(snake):
+        sx, sy = to_grid(segment)
+        if 0 <= sx < width and 0 <= sy < height:
+            if i == 0:  # Tête
+                grid[sy][sx] = '🐍'
+            else:  # Corps
+                grid[sy][sx] = '●'
+
+    return '\n'.join(''.join(row) for row in grid)
+
+
 if model_exists and run_demo:
     with st.spinner("🎮 Initialisation du jeu..."):
+        # Désactiver l'affichage Pygame pour Streamlit Cloud
+        import os
+        os.environ['SDL_VIDEODRIVER'] = 'dummy'
+
         env = SnakeGameEnv(speed=speed)
         state_size = len(env.get_state())
         action_size = 3
@@ -88,6 +121,7 @@ if model_exists and run_demo:
 
     with col1:
         frame_placeholder = st.empty()
+        game_display = st.empty()
 
     state = env.reset()
     done = False
@@ -101,15 +135,27 @@ if model_exists and run_demo:
         state = next_state
         moves += 1
 
-        # Rendu visuel
-        arr = np.transpose(pygame.surfarray.array3d(env.display), (1, 0, 2))
-        frame_placeholder.image(arr, channels='RGB', width=400)
+        # Affichage du jeu - essayer Pygame puis fallback textuel
+        try:
+            # Marche en local
+            arr = np.transpose(
+                pygame.surfarray.array3d(env.display), (1, 0, 2))
+            frame_img = Image.fromarray(arr)
+
+            # Afficher l'image dans Streamlit
+            frame_placeholder.image(frame_img, channels='RGB', width=400)
+            game_display.empty()  # Vider l'affichage textuel
+        except:
+            # Fallback pour Streamlit Cloud
+            frame_placeholder.empty()  # Vider l'affichage image
+            grid = create_text_grid(env.snake, env.food, 32, 24)
+            game_display.code(grid, language=None)
 
         # Mise à jour des métriques
         with col2:
             score_placeholder.metric("Score actuel", score)
 
-        time.sleep(1.0/speed)
+        time.sleep(1.0/speed)  # Limiter la vitesse pour le cloud
 
     # Fin de partie - ajouter le score à l'historique
     st.session_state.game_number += 1
