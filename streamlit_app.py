@@ -10,6 +10,10 @@ import pandas as pd
 import plotly.graph_objects as go
 from PIL import Image
 import io
+import uuid
+import tempfile
+import atexit
+import shutil
 
 
 # Configuration de la page
@@ -19,6 +23,21 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Créer un dossier temporaire pour cette session
+if 'session_id' not in st.session_state:
+    st.session_state.session_id = str(uuid.uuid4())
+    st.session_state.temp_dir = os.path.join(
+        tempfile.gettempdir(), f"snake_demo_{st.session_state.session_id}")
+    os.makedirs(st.session_state.temp_dir, exist_ok=True)
+
+    # Fonction de nettoyage qui sera appelée à la fin de la session
+    def cleanup_temp_files():
+        if os.path.exists(st.session_state.temp_dir):
+            shutil.rmtree(st.session_state.temp_dir, ignore_errors=True)
+
+    # Enregistrer la fonction de nettoyage
+    atexit.register(cleanup_temp_files)
 
 # Header avec style
 st.markdown("""
@@ -126,7 +145,7 @@ if model_exists and run_demo:
     score = 0
     moves = 0
     status_text = st.empty()
-    frames = []
+    frame_paths = []  # Stocke les chemins des fichiers au lieu des objets Image
 
     while not done:
         action = agent.act(state)
@@ -138,7 +157,13 @@ if model_exists and run_demo:
         # Marche en local
         arr = np.transpose(
             pygame.surfarray.array3d(env.display), (1, 0, 2))
-        frames.append(Image.fromarray(arr))
+
+        # Sauvegarder la frame sur disque au lieu de la garder en mémoire
+        frame_img = Image.fromarray(arr)
+        frame_path = os.path.join(
+            st.session_state.temp_dir, f"frame_{len(frame_paths):04d}.png")
+        frame_img.save(frame_path)
+        frame_paths.append(frame_path)
 
         grid = create_text_grid(env.snake, env.food, 32, 24)
         game_display.code(grid, language=None)
@@ -155,21 +180,35 @@ if model_exists and run_demo:
     # Générer le GIF avec spinner dans la zone de jeu
     with game_display.container():
         with st.spinner("🎥 Génération du replay..."):
-            gif_bytes = io.BytesIO()
-            frames[0].save(
-                gif_bytes,
-                save_all=True,
-                format="GIF",
-                append_images=frames[1:],
-                duration=int(5000 / speed),
-                loop=0
-            )
+            # Créer le GIF à partir des fichiers sauvegardés sur disque
+            gif_path = os.path.join(
+                st.session_state.temp_dir, f"replay_{st.session_state.game_number + 1}.gif")
 
-    # Afficher le GIF final
-    gif_bytes.seek(0)
+            if frame_paths:
+                # Charger la première frame
+                first_frame = Image.open(frame_paths[0])
 
-    # Affichage du GIF final
-    frame_placeholder.image(gif_bytes)
+                # Charger les frames suivantes
+                other_frames = [Image.open(path) for path in frame_paths[1:]]
+
+                # Sauvegarder le GIF sur disque
+                first_frame.save(
+                    gif_path,
+                    save_all=True,
+                    format="GIF",
+                    append_images=other_frames,
+                    duration=int(5000 / speed),
+                    loop=0
+                )
+
+                # Fermer toutes les images pour libérer la mémoire
+                first_frame.close()
+                for frame in other_frames:
+                    frame.close()
+
+    # Afficher le GIF final depuis le fichier
+    if os.path.exists(gif_path):
+        frame_placeholder.image(gif_path)
 
     st.session_state.game_number += 1
     st.session_state.score_history.append(score)
@@ -220,6 +259,16 @@ if model_exists and run_demo:
 if st.sidebar.button("🗑️ Réinitialiser l'historique"):
     st.session_state.score_history = []
     st.session_state.game_number = 0
+
+    # Nettoyer les fichiers temporaires de cette session
+    if hasattr(st.session_state, 'temp_dir') and os.path.exists(st.session_state.temp_dir):
+        shutil.rmtree(st.session_state.temp_dir, ignore_errors=True)
+        # Créer un nouveau dossier temporaire
+        st.session_state.session_id = str(uuid.uuid4())
+        st.session_state.temp_dir = os.path.join(
+            tempfile.gettempdir(), f"snake_demo_{st.session_state.session_id}")
+        os.makedirs(st.session_state.temp_dir, exist_ok=True)
+
     st.rerun()
 
 # Footer
