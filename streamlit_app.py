@@ -128,6 +128,7 @@ if model_exists and run_demo:
     score = 0
     moves = 0
     status_text = st.empty()
+    frames = []
 
     while not done:
         action = agent.act(state)
@@ -140,10 +141,10 @@ if model_exists and run_demo:
             # Marche en local
             arr = np.transpose(
                 pygame.surfarray.array3d(env.display), (1, 0, 2))
-            frame_img = Image.fromarray(arr)
+            frames.append(Image.fromarray(arr))
 
             # Afficher l'image dans Streamlit
-            frame_placeholder.image(frame_img, channels='RGB', width=400)
+            # frame_placeholder.image(frames[-1], channels='RGB', width=400)
             game_display.empty()  # Vider l'affichage textuel
         except:
             # Fallback pour Streamlit Cloud
@@ -158,6 +159,17 @@ if model_exists and run_demo:
         time.sleep(1.0/speed)  # Limiter la vitesse pour le cloud
 
     # Fin de partie - ajouter le score à l'historique
+    gif_path = "snake_game.gif"
+    frames[0].save(
+        gif_path,
+        save_all=True,
+        append_images=frames[1:],
+        duration=int(1000 / speed),
+        loop=0
+    )
+
+    # Afficher le GIF final
+    frame_placeholder.image(gif_path)
     st.session_state.game_number += 1
     st.session_state.score_history.append(score)
 
