@@ -107,8 +107,7 @@ if model_exists and run_demo:
 
         # Mise à jour des métriques
         with col2:
-            score_placeholder.metric(
-                "Score actuel", score, delta=reward if reward > 0 else None)
+            score_placeholder.metric("Score actuel", score)
 
         time.sleep(1.0/speed)
 
